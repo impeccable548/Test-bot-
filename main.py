@@ -1,35 +1,16 @@
-import asyncio
-import websockets
-import json
+import requests
 
-# PumpFun WebSocket URL
-WS_URL = "wss://pumpportal.fun/api/data"
+# Endpoint to fetch trending tokens
+url = "https://pumpportal.fun/api/trade-local"
 
-async def get_trending():
-    async with websockets.connect(WS_URL) as ws:
-        # Subscribe to trending tokens
-        await ws.send(json.dumps({
-            "method": "trending",
-            "params": {}
-        }))
-
-        while True:
-            try:
-                msg = await ws.recv()
-                data = json.loads(msg)
-
-                if "result" in data and "tokens" in data["result"]:
-                    tokens = data["result"]["tokens"]
-
-                    print("\n🔥 Top 10 PumpFun Trending Tokens 🔥")
-                    for i, token in enumerate(tokens[:10], start=1):
-                        print(f"{i}. {token['name']} ({token['symbol']}) | "
-                              f"CA: {token['mint']} | "
-                              f"MCAP: {token.get('marketCapUsd', 'N/A')}")
-
-            except Exception as e:
-                print("Error:", e)
-                break
-
-if __name__ == "__main__":
-    asyncio.run(get_trending())
+# Request top tokens
+response = requests.get(url)
+if response.status_code == 200:
+    data = response.json()
+    top_10 = data[:10]  # assuming API returns a list of tokens
+    print("Top 10 trending tokens:")
+    for i, token in enumerate(top_10, start=1):
+        print(f"{i}. {token['name']} ({token['mint']})")  # adjust keys based on actual API response
+else:
+    print(f"Failed to fetch tokens. Status code: {response.status_code}")
+                    

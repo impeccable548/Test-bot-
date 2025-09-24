@@ -1,4 +1,3 @@
-
 # main.py
 # Test Bot - Read-only tracker for a PumpFun token on Solana.
 # Run: python main.py
@@ -7,7 +6,6 @@ import asyncio
 import base64
 from solana.rpc.async_api import AsyncClient
 from solana.publickey import PublicKey
-from solana.rpc.commitment import Confirmed
 
 # ===== CONFIG =====
 RPC_URL = "https://solana-devnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"
@@ -24,7 +22,7 @@ MAX_SCAN = 1000
 
 
 async def get_token_supply(client: AsyncClient, mint: PublicKey):
-    resp = await client.get_token_supply(mint, commitment=Confirmed)
+    resp = await client.get_token_supply(mint, commitment="confirmed")
     val = resp.get("result", {}).get("value")
     if not val:
         return None, None
@@ -32,7 +30,9 @@ async def get_token_supply(client: AsyncClient, mint: PublicKey):
 
 
 async def get_holders(client: AsyncClient, mint: PublicKey):
-    resp = await client.get_token_accounts_by_mint(mint, encoding="jsonParsed", commitment=Confirmed)
+    resp = await client.get_token_accounts_by_mint(
+        mint, encoding="jsonParsed", commitment="confirmed"
+    )
     accounts = resp.get("result", {}).get("value", [])
     holders = 0
     for acc in accounts:
@@ -45,7 +45,9 @@ async def get_holders(client: AsyncClient, mint: PublicKey):
 
 
 async def find_pools(client: AsyncClient, mint: PublicKey, program_id: PublicKey):
-    resp = await client.get_program_accounts(program_id, encoding="base64", commitment=Confirmed)
+    resp = await client.get_program_accounts(
+        program_id, encoding="base64", commitment="confirmed"
+    )
     accounts = resp.get("result", [])
     print(f"Scanned {len(accounts)} program accounts (showing up to {MAX_SCAN})")
 
@@ -87,4 +89,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())                    
+    asyncio.run(main())

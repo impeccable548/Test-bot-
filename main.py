@@ -8,8 +8,7 @@ from solana.rpc.async_api import AsyncClient
 from solana.publickey import PublicKey
 
 # ===== CONFIG =====
-RPC_URL = "https://solana-devnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"
-
+RPC_URL = "https://solana-mainnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"
 # Token mint (the token you want to track)
 TOKEN_MINT = "CKVZPWFPaJArEaPnk16CXpFtFXjuCxCh95vBcS3Ppump"
 

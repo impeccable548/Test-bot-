@@ -65,6 +65,13 @@ async def main():
 
     await client.close()
 
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    import time
+
+    async def loop_main():
+        while True:
+            await main()
+            print("-" * 40)
+            await asyncio.sleep(30)  # every 30s, can change to 60, 120, etc.
+
+    asyncio.run(loop_main())

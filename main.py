@@ -1,7 +1,6 @@
 # main.py
-# PumpFun Token Tracker - Read-only Solana bot
-# Run locally: python main.py
-# Deploy on Render: Background Worker
+# Test Bot - Read-only tracker for a PumpFun token on Solana.
+# Run: python main.py
 
 import asyncio
 from solana.rpc.async_api import AsyncClient
@@ -16,6 +15,9 @@ TOKEN_MINT = "BqndqeBCNSEftBKmbTbLVx1RX5zd5J3AGL9sG55Jpump"
 # Vaults
 BASE_VAULT = "AwJ8XtG2rgmrxhqeBG55voCT2LxBB3iQzs9DKtrzUHRd"   # Q4
 QUOTE_VAULT = "3HzVMQo6pboZB7bDuDeJg18wsZJWT4chnZV3y2BJwFQQ"  # WSOL
+
+WSOL_DECIMALS = 9
+TOKEN_DECIMALS = 6  # adjust if different
 # ==================
 
 
@@ -23,7 +25,7 @@ async def get_balance(client: AsyncClient, account: str):
     resp = await client.get_token_account_balance(PublicKey(account))
     val = resp.get("result", {}).get("value")
     if not val:
-        return 0, 0
+        return 0
     return int(val["amount"]), int(val["decimals"])
 
 
@@ -42,6 +44,7 @@ async def main():
     base_amt, base_dec = await get_balance(client, BASE_VAULT)
     quote_amt, quote_dec = await get_balance(client, QUOTE_VAULT)
 
+    # Normalize balances
     base = base_amt / (10 ** base_dec)
     quote = quote_amt / (10 ** quote_dec)
 
@@ -52,7 +55,7 @@ async def main():
     price = quote / base if base > 0 else 0
     print(f"\n💰 Price (in WSOL): {price}")
 
-    # Supply + Market Cap
+    # Supply + mcap
     supply, sup_dec = await get_token_supply(client, TOKEN_MINT)
     supply_norm = supply / (10 ** sup_dec)
     mcap = price * supply_norm
@@ -64,13 +67,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    async def loop_main():
-        while True:
-            try:
-                await main()
-            except Exception as e:
-                print(f"⚠️ Error: {e}")
-            print("-" * 40)
-            await asyncio.sleep(30)  # run every 30s
-
-    asyncio.run(loop_main())
+    asyncio.run(main())

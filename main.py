@@ -3,6 +3,7 @@
 # Run: python main.py
 
 import asyncio
+import base58
 from solana.rpc.async_api import AsyncClient
 from solders.pubkey import Pubkey
 from solana.rpc.types import MemcmpOpts
@@ -22,10 +23,12 @@ async def auto_vaults(client: AsyncClient, token_mint: str):
     print(f"🔍 Finding vaults for token mint: {token_mint} ...")
     try:
         mint_pubkey = Pubkey.from_string(token_mint)
+        mint_b58 = base58.b58encode(mint_pubkey.__bytes__()).decode("utf-8")
+
         resp = await client.get_program_accounts(
             PUMPFUN_AMM_PROGRAM,
             encoding="jsonParsed",
-            filters=[MemcmpOpts(offset=0, bytes=mint_pubkey.to_base58())]
+            filters=[MemcmpOpts(offset=0, bytes=mint_b58)]
         )
 
         if not resp.value:
@@ -53,7 +56,7 @@ async def get_balance(client: AsyncClient, account: str):
         resp = await client.get_token_account_balance(Pubkey.from_string(account))
         val = resp.get("result", {}).get("value")
         if not val:
-            return 0
+            return 0, 0
         return int(val["amount"]), int(val["decimals"])
     except Exception:
         return 0, 0

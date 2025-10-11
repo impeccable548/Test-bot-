@@ -5,7 +5,6 @@
 import asyncio
 from solana.rpc.async_api import AsyncClient
 from solders.pubkey import Pubkey
-from solders.system_program import AccountMeta
 
 # ===== CONFIG =====
 RPC_URL = "https://solana-mainnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"

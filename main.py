@@ -1,10 +1,10 @@
 # main.py
-# Pump.fun Token Tracker - Read-only SDK (Solana)
+# Pump.fun Token Tracker - solders SDK (Solana)
 # Run: python main.py
 
 import asyncio
 from solana.rpc.async_api import AsyncClient
-from solana.publickey import PublicKey
+from solders.pubkey import Pubkey
 
 # ===== CONFIG =====
 RPC_URL = "https://solana-mainnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"
@@ -17,26 +17,26 @@ BASE_VAULT = "4KyZRpPvSzta1A375xsS53L8hosAqqQHhxKKB46dTb3G"   # JewCoin
 QUOTE_VAULT = "4DRQKmRNj8W2hexGe5r44H3uEodvfAJKQaFn1SDvh3gr"  # WSOL
 
 WSOL_DECIMALS = 9
-TOKEN_DECIMALS = 6  # adjust if different
+TOKEN_DECIMALS = 6
 # ==================
 
 
 async def get_balance(client: AsyncClient, account: str):
     """Fetch SPL token balance for an account"""
-    resp = await client.get_token_account_balance(PublicKey(account))
-    val = resp.get("result", {}).get("value")
+    resp = await client.get_token_account_balance(Pubkey.from_string(account))
+    val = getattr(resp, "value", None)
     if not val:
         return 0, 0
-    return int(val["amount"]), int(val["decimals"])
+    return int(val.amount), int(val.decimals)
 
 
 async def get_token_supply(client: AsyncClient, mint: str):
     """Fetch total supply of token"""
-    resp = await client.get_token_supply(PublicKey(mint))
-    val = resp.get("result", {}).get("value")
+    resp = await client.get_token_supply(Pubkey.from_string(mint))
+    val = getattr(resp, "value", None)
     if not val:
         return 0, 0
-    return int(val["amount"]), int(val["decimals"])
+    return int(val.amount), int(val.decimals)
 
 
 async def main():

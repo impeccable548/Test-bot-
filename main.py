@@ -1,21 +1,21 @@
 # main.py
-# Pump.fun Pool Info Tracker (Real SPL Vault Balances)
-# Compatible with solana==0.30.2 and solders==0.18.1
+# Pump.fun Pool Info Tracker (Handles both parsed + raw data)
+# Compatible with solana==0.30.2, solders==0.18.1
 
 import asyncio
 from solana.rpc.async_api import AsyncClient
 from solders.pubkey import Pubkey
+import base64
+import struct
 
 # ===== CONFIG =====
 RPC_URL = "https://solana-mainnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"
 WSOL_DECIMALS = 9
-# Replace with your actual pool account and token mint
 POOL_ACCOUNT = "9zgLmaVCxc7u6ZHG8HMSau6AUjRq8pnM8KL4eDJDYjU9"
 TOKEN_MINT = "64BX1uPFBZnNmEZ9USV1NA2q2SoeJEKZF2hu7cB6pump"
 # ==================
 
 async def get_spl_balance(client: AsyncClient, account_pubkey: str):
-    """Fetch SPL token account balance"""
     try:
         resp = await client.get_token_account_balance(Pubkey.from_string(account_pubkey))
         val = getattr(resp, "value", None)
@@ -26,7 +26,6 @@ async def get_spl_balance(client: AsyncClient, account_pubkey: str):
         return 0, 0
 
 async def get_token_supply(client: AsyncClient, mint_pubkey: str):
-    """Fetch SPL token supply for a mint"""
     try:
         resp = await client.get_token_supply(Pubkey.from_string(mint_pubkey))
         val = getattr(resp, "value", None)
@@ -37,25 +36,36 @@ async def get_token_supply(client: AsyncClient, mint_pubkey: str):
         return 0, 0
 
 async def fetch_pool_info(pool_account: str, token_mint: str):
-    """Fetch pool info from Pump.fun"""
     client = AsyncClient(RPC_URL)
     try:
         pool_pubkey = Pubkey.from_string(pool_account)
-
-        # Step 1: fetch pool account info
         resp = await client.get_account_info(pool_pubkey, encoding="jsonParsed")
+
         if not resp.value:
             print("❌ Pool account not found.")
             await client.close()
             return
 
         data = resp.value.data
-        # For Pump.fun, vaults are stored as top-level fields in parsed data
-        parsed = data["parsed"]["info"]
-        base_vault = parsed["baseVault"]
-        quote_vault = parsed["quoteVault"]
 
-        # Step 2: fetch actual SPL balances
+        # --- CASE 1: Parsed JSON (preferred) ---
+        if isinstance(data, dict) and "parsed" in data:
+            parsed = data["parsed"]["info"]
+            base_vault = parsed["baseVault"]
+            quote_vault = parsed["quoteVault"]
+
+        # --- CASE 2: Raw base64 data ---
+        elif isinstance(data, list) and len(data) > 0:
+            raw_data = base64.b64decode(data[0])
+            # Typical Pump.fun layout: first 32 bytes = baseVault, next 32 bytes = quoteVault
+            base_vault = Pubkey(raw_data[0:32]).__str__()
+            quote_vault = Pubkey(raw_data[32:64]).__str__()
+
+        else:
+            print("❌ Unrecognized data format.")
+            await client.close()
+            return
+
         base_amt, base_dec = await get_spl_balance(client, base_vault)
         quote_amt, quote_dec = await get_spl_balance(client, quote_vault)
 
@@ -63,7 +73,6 @@ async def fetch_pool_info(pool_account: str, token_mint: str):
         quote = quote_amt / (10 ** quote_dec)
         price = quote / base if base > 0 else 0
 
-        # Step 3: fetch total token supply
         supply, sup_dec = await get_token_supply(client, token_mint)
         supply_norm = supply / (10 ** sup_dec)
         mcap = price * supply_norm

@@ -1,77 +1,76 @@
 # main.py
-# Pump.fun Pool Tracker - Solana (raw vault fetch)
-# Compatible with solana==0.30.2 and solders==0.18.1
+# Pump.fun Token Tracker - Read-only SDK (Solana)
 # Run: python main.py
 
 import asyncio
 from solana.rpc.async_api import AsyncClient
-from solders.pubkey import Pubkey
+from solana.publickey import PublicKey
 
 # ===== CONFIG =====
 RPC_URL = "https://solana-mainnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"
 
-# Replace these with the actual pool vaults and token mint
-BASE_VAULT = "HG7q9f1k61ZRXvtX3ywVXVJK3zWhnGwg3TJCu74eyWFv"
-QUOTE_VAULT = "4CCPPGq4bvhMtTqWkXF9iuQGNx1bKDdjBytHi769hJto"
+# Token mint
 TOKEN_MINT = "64BX1uPFBZnNmEZ9USV1NA2q2SoeJEKZF2hu7cB6pump"
 
+# Vaults
+BASE_VAULT = "4KyZRpPvSzta1A375xsS53L8hosAqqQHhxKKB46dTb3G"   # JewCoin
+QUOTE_VAULT = "4DRQKmRNj8W2hexGe5r44H3uEodvfAJKQaFn1SDvh3gr"  # WSOL
+
 WSOL_DECIMALS = 9
-TOKEN_DECIMALS = 6
+TOKEN_DECIMALS = 6  # adjust if different
 # ==================
 
-async def get_balance(client: AsyncClient, vault: str):
-    """Fetch SPL token balance from vault using solders"""
-    try:
-        resp = await client.get_token_account_balance(Pubkey.from_string(vault))
-        val = getattr(resp, "value", None)
-        if not val:
-            return 0, 0
-        return int(val.amount), int(val.decimals)
-    except Exception as e:
-        print(f"❌ Error fetching balance for {vault}: {e}")
+
+async def get_balance(client: AsyncClient, account: str):
+    """Fetch SPL token balance for an account"""
+    resp = await client.get_token_account_balance(PublicKey(account))
+    val = resp.get("result", {}).get("value")
+    if not val:
         return 0, 0
+    return int(val["amount"]), int(val["decimals"])
+
 
 async def get_token_supply(client: AsyncClient, mint: str):
-    """Fetch total token supply for mint"""
-    try:
-        resp = await client.get_token_supply(Pubkey.from_string(mint))
-        val = getattr(resp, "value", None)
-        if not val:
-            return 0, 0
-        return int(val.amount), int(val.decimals)
-    except Exception as e:
-        print(f"❌ Error fetching token supply: {e}")
+    """Fetch total supply of token"""
+    resp = await client.get_token_supply(PublicKey(mint))
+    val = resp.get("result", {}).get("value")
+    if not val:
         return 0, 0
+    return int(val["amount"]), int(val["decimals"])
 
-async def fetch_pool_info():
+
+async def main():
     client = AsyncClient(RPC_URL)
-    try:
-        # Get balances
-        base_amt, base_dec = await get_balance(client, BASE_VAULT)
-        quote_amt, quote_dec = await get_balance(client, QUOTE_VAULT)
 
-        base = base_amt / (10 ** base_dec)
-        quote = quote_amt / (10 ** quote_dec)
-        price = quote / base if base > 0 else 0
-        lp = base * price + quote
+    # Get balances
+    base_amt, base_dec = await get_balance(client, BASE_VAULT)
+    quote_amt, quote_dec = await get_balance(client, QUOTE_VAULT)
 
-        # Token supply
-        supply, sup_dec = await get_token_supply(client, TOKEN_MINT)
-        supply_norm = supply / (10 ** sup_dec)
-        mcap = price * supply_norm
+    # Normalize
+    base = base_amt / (10 ** base_dec)
+    quote = quote_amt / (10 ** quote_dec)
 
-        # Print results
-        print("===== Pump.fun Pool Info =====")
-        print(f"Base Vault: {BASE_VAULT} ({base} tokens)")
-        print(f"Quote Vault: {QUOTE_VAULT} ({quote} WSOL)")
-        print(f"Price (in WSOL): {price}")
-        print(f"Liquidity (LP in WSOL): {lp}")
-        print(f"Supply: {supply_norm}")
-        print(f"Market Cap (WSOL): {mcap}")
-        print("==============================")
+    print(f"Base Vault (token): {base}")
+    print(f"Quote Vault (WSOL): {quote}")
 
-    finally:
-        await client.close()
+    # Price
+    price = quote / base if base > 0 else 0
+    print(f"\n💰 Price (in WSOL): {price}")
+
+    # Liquidity
+    lp = base * price + quote
+    print(f"💧 Liquidity (LP in WSOL): {lp}")
+
+    # Supply + market cap
+    supply, sup_dec = await get_token_supply(client, TOKEN_MINT)
+    supply_norm = supply / (10 ** sup_dec)
+    mcap = price * supply_norm
+
+    print(f"📊 Supply: {supply_norm}")
+    print(f"🏦 Market Cap (WSOL): {mcap}")
+
+    await client.close()
+
 
 if __name__ == "__main__":
-    asyncio.run(fetch_pool_info())
+    asyncio.run(main())

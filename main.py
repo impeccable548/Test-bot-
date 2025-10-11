@@ -1,120 +1,90 @@
 # main.py
-# Pump.fun Vault Tracker (Solana)
-# Flask + async + Render-ready
-# Compatible: solana==0.30.2, solders==0.18.1
+# Auto Vault Fetch + Token Data Tracker for a Pump.fun pool
+# Compatible with solana==0.30.2 and solders==0.18.1
 
 import asyncio
-import logging
-from flask import Flask, jsonify
 from solana.rpc.async_api import AsyncClient
 from solders.pubkey import Pubkey
-from solana.rpc.types import MemcmpOpts
 
 # ===== CONFIG =====
 RPC_URL = "https://solana-mainnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"
-PUMPFUN_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P6"
-DEFAULT_TOKEN_MINT = "64BX1uPFBZnNmEZ9USV1NA2q2SoeJEKZF2hu7cB6pump"
 WSOL_DECIMALS = 9
-TOKEN_DECIMALS = 6
+# Replace with your actual pool account and token mint
+POOL_ACCOUNT = "9zgLmaVCxc7u6ZHG8HMSau6AUjRq8pnM8KL4eDJDYjU9"
+TOKEN_MINT = "64BX1uPFBZnNmEZ9USV1NA2q2SoeJEKZF2hu7cB6pump"
 # ==================
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+async def get_token_balance(client: AsyncClient, account_pubkey: str):
+    """Fetch SPL token balance for an account"""
+    try:
+        resp = await client.get_token_account_balance(Pubkey.from_string(account_pubkey))
+        val = getattr(resp, "value", None)
+        if not val:
+            return 0, 0
+        return int(val.amount), int(val.decimals)
+    except Exception:
+        return 0, 0
 
-# -----------------------
-# Async helper functions
-# -----------------------
-async def fetch_vaults(token_mint: str = DEFAULT_TOKEN_MINT):
+
+async def get_token_supply(client: AsyncClient, mint_pubkey: str):
+    """Fetch SPL token supply for a mint"""
+    try:
+        resp = await client.get_token_supply(Pubkey.from_string(mint_pubkey))
+        val = getattr(resp, "value", None)
+        if not val:
+            return 0, 0
+        return int(val.amount), int(val.decimals)
+    except Exception:
+        return 0, 0
+
+
+async def fetch_pool_info(pool_account: str, token_mint: str):
+    """Fetch pool vaults, balances, price, and market cap"""
     client = AsyncClient(RPC_URL)
     try:
-        mint_pubkey = Pubkey.from_string(token_mint)
-        program_pubkey = Pubkey.from_string(PUMPFUN_PROGRAM_ID)
+        pool_pubkey = Pubkey.from_string(pool_account)
+        token_pubkey = Pubkey.from_string(token_mint)
 
-        resp = await client.get_program_accounts(
-            program_pubkey,
-            encoding="jsonParsed",
-            filters=[MemcmpOpts(offset=0, bytes=str(mint_pubkey))]
-        )
-
-        value = getattr(resp, "value", None)
-        if not value:
+        # Fetch the pool account info
+        resp = await client.get_account_info(pool_pubkey, encoding="jsonParsed")
+        if not resp.value:
+            print("❌ Pool account not found.")
             await client.close()
-            return {"error": f"No vaults found for token {token_mint}"}
+            return
 
-        pool = value[0]
-        data = pool.account.data
-        base_vault = data["parsed"]["info"]["baseVault"]
-        quote_vault = data["parsed"]["info"]["quoteVault"]
+        data = resp.value.data["parsed"]["info"]
+        base_vault = data["baseVault"]
+        quote_vault = data["quoteVault"]
 
-        base_amt, base_dec = await get_balance(client, base_vault)
-        quote_amt, quote_dec = await get_balance(client, quote_vault)
+        # Fetch vault balances
+        base_amt, base_dec = await get_token_balance(client, base_vault)
+        quote_amt, quote_dec = await get_token_balance(client, quote_vault)
+
         base = base_amt / (10 ** base_dec)
         quote = quote_amt / (10 ** quote_dec)
+        price = quote / base if base > 0 else 0
 
+        # Token supply
         supply, sup_dec = await get_token_supply(client, token_mint)
         supply_norm = supply / (10 ** sup_dec)
-        price = quote / base if base > 0 else 0
         mcap = price * supply_norm
 
         await client.close()
-        return {
-            "token_mint": token_mint,
-            "base_vault": base_vault,
-            "quote_vault": quote_vault,
-            "base": base,
-            "quote": quote,
-            "price_in_wsol": price,
-            "supply": supply_norm,
-            "market_cap": mcap
-        }
+
+        print("===== Pump.fun Pool Info =====")
+        print(f"Pool Account: {pool_account}")
+        print(f"Base Vault: {base_vault} ({base} tokens)")
+        print(f"Quote Vault: {quote_vault} ({quote} WSOL)")
+        print(f"Price (in WSOL): {price}")
+        print(f"Supply: {supply_norm}")
+        print(f"Market Cap (WSOL): {mcap}")
+        print("==============================")
 
     except Exception as e:
         await client.close()
-        logger.error(f"Vault fetch error: {e}")
-        return {"error": str(e)}
+        print(f"❌ Error fetching pool info: {e}")
 
 
-async def get_balance(client: AsyncClient, account: str):
-    try:
-        resp = await client.get_token_account_balance(Pubkey.from_string(account))
-        val = getattr(resp, "value", None)
-        if not val:
-            return 0, 0
-        return int(val.amount), int(val.decimals)
-    except Exception as e:
-        logger.warning(f"Failed to fetch balance for {account}: {e}")
-        return 0, 0
-
-
-async def get_token_supply(client: AsyncClient, mint: str):
-    try:
-        resp = await client.get_token_supply(Pubkey.from_string(mint))
-        val = getattr(resp, "value", None)
-        if not val:
-            return 0, 0
-        return int(val.amount), int(val.decimals)
-    except Exception as e:
-        logger.warning(f"Failed to fetch token supply for {mint}: {e}")
-        return 0, 0
-
-# -----------------------
-# Flask Routes
-# -----------------------
-@app.route("/")
-def home():
-    return (
-        "🚀 Pump.fun Vault API running! "
-        "Use /vault or /vault/<token_mint> to fetch token info."
-    )
-
-@app.route("/vault")
-@app.route("/vault/<token_mint>")
-def vault(token_mint: str = DEFAULT_TOKEN_MINT):
-    """Fetch vault info for a given token mint"""
-    result = asyncio.run(fetch_vaults(token_mint))
-    return jsonify(result)
-
-# No app.run() here! Gunicorn will serve this
+if __name__ == "__main__":
+    asyncio.run(fetch_pool_info(POOL_ACCOUNT, TOKEN_MINT))

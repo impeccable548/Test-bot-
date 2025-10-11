@@ -4,3 +4,4 @@ flask
 base58
 requests
 asyncio
+gunicorn

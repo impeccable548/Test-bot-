@@ -12,7 +12,7 @@ from solana.rpc.types import MemcmpOpts
 # ===== CONFIG =====
 RPC_URL = "https://solana-mainnet.rpc.extrnode.com/0fce7e9a-3879-45d2-b543-a7988fd05869"
 TOKEN_MINT = "64BX1uPFBZnNmEZ9USV1NA2q2SoeJEKZF2hu7cB6pump"
-PUMPFUN_PROGRAM = Pubkey.from_string("PUMPFiN1111111111111111111111111111111111111")  # Pump.fun AMM program
+PUMPFUN_PROGRAM = Pubkey.from_string("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P6")  # Pump.fun AMM program
 # ==================
 
 app = Flask(__name__)
